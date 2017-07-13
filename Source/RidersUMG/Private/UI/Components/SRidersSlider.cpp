@@ -22,6 +22,22 @@ void SRidersSlider::Construct(const SRidersSlider::FArguments& InDeclaration)
 
 }
 
+
+void PushTransformedClip(FSlateWindowElementList& OutDrawElements, const FGeometry& AllottedGeometry, FVector2D InsetPadding, FVector2D ProgressOrigin, FSlateRect Progress)
+{
+	const FSlateRenderTransform& Transform = AllottedGeometry.GetAccumulatedRenderTransform();
+
+	const FVector2D MaxSize = AllottedGeometry.GetLocalSize() - (InsetPadding * 2.0f);
+
+	OutDrawElements.PushClip(FSlateClippingZone(
+		Transform.TransformPoint(InsetPadding + (ProgressOrigin - FVector2D(Progress.Left, Progress.Top)) * MaxSize),
+		Transform.TransformPoint(InsetPadding + FVector2D(ProgressOrigin.X + Progress.Right, ProgressOrigin.Y - Progress.Top) * MaxSize),
+		Transform.TransformPoint(InsetPadding + FVector2D(ProgressOrigin.X - Progress.Left, ProgressOrigin.Y + Progress.Bottom) * MaxSize),
+		Transform.TransformPoint(InsetPadding + (ProgressOrigin + FVector2D(Progress.Right, Progress.Bottom)) * MaxSize)
+	));
+}
+
+
 int32 SRidersSlider::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyClippingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
 
@@ -93,55 +109,115 @@ int32 SRidersSlider::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGe
 				FVector2D(AllottedWidth, AllottedHeight),
 				FSlateLayoutTransform(),
 				SlateRenderTransform, FVector2D::ZeroVector);
+
 			// The clipping rect is already given properly in window space. But we do not support layout rotations, so our local space rendering cannot
 			// get the clipping rect into local space properly for the local space clipping we do in the shader.
 			// Thus, we transform the clip coords into local space manually, UNDO the render transform so it will clip properly,
 			// and then bring the clip coords back into window space where DrawElements expect them.
-			RotatedClippingRect = TransformRect(
-				Concatenate(
-					Inverse(SliderGeometry.GetAccumulatedLayoutTransform()),
-					Inverse(SlateRenderTransform),
-					SliderGeometry.GetAccumulatedLayoutTransform()),
-				MyClippingRect);
+			//RotatedClippingRect = TransformRect(
+			//	Concatenate(
+			//		Inverse(SliderGeometry.GetAccumulatedLayoutTransform()),
+			//		Inverse(SlateRenderTransform),
+			//		SliderGeometry.GetAccumulatedLayoutTransform()),
+			//	MyClippingRect);
 		}
 
 		// draw slider bar
 		auto BarTopLeft = FVector2D(SliderStartPoint.X, SliderStartPoint.Y - Style->BarThickness * 0.5f);
 		auto BarSize = FVector2D(SliderEndPoint.X - SliderStartPoint.X, Style->BarThickness);
 
+		PushTransformedClip(OutDrawElements, AllottedGeometry, FVector2D(0.0f, 0.0f), FVector2D(0, 0), FSlateRect(0, 0, 1, 1));
+
 		FSlateDrawElement::MakeBox(
 			OutDrawElements,
 			RetLayerId++,
 			SliderGeometry.ToPaintGeometry(BarTopLeft, BarSize),
 			LockedAttribute.Get() ? CurrentDisabledBackgroundImage : CurrentBackgroundImage,
-			RotatedClippingRect,
 			DrawEffects,
 			LockedAttribute.Get() ? CurrentDisabledBackgroundImage->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint() : CurrentBackgroundImage->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint()
 		);
+
+		// old
+		//FSlateDrawElement::MakeBox(
+		//	OutDrawElements,
+		//	RetLayerId++,
+		//	SliderGeometry.ToPaintGeometry(BarTopLeft, BarSize),
+		//	LockedAttribute.Get() ? CurrentDisabledBackgroundImage : CurrentBackgroundImage,
+		//	RotatedClippingRect,
+		//	DrawEffects,
+		//	LockedAttribute.Get() ? CurrentDisabledBackgroundImage->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint() : CurrentBackgroundImage->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint()
+		//);
+
+
+		//new
+		OutDrawElements.PopClip();
 
 
 		if (ValueAttribute.IsSet())
 		{
 			const float ClampedFraction = FMath::Clamp(SliderPercent, 0.0f, 1.0f);
 			
-			FSlateRect ClippedAllotedGeometry = FSlateRect(SliderGeometry.AbsolutePosition, SliderGeometry.AbsolutePosition + SliderGeometry.Size * SliderGeometry.Scale);
-			ClippedAllotedGeometry.Right = ClippedAllotedGeometry.Left + ClippedAllotedGeometry.GetSize().X * ClampedFraction;
+			if (Orientation == Orient_Vertical)
+			{
+				PushTransformedClip(OutDrawElements, AllottedGeometry, FVector2D(0.0f, 0.0f), FVector2D(0, 1), FSlateRect(0, ClampedFraction, 1, 0));
 
-			// Draw Fill
-			FSlateDrawElement::MakeBox(
-				OutDrawElements,
-				RetLayerId++,
-				SliderGeometry.ToPaintGeometry(BarTopLeft, FVector2D(SliderGeometry.Size.X, BarSize.Y)),
-				LockedAttribute.Get() ? CurrentDisabledBackgroundImage : CurrentFillImage,
-				RotatedClippingRect.IntersectionWith(ClippedAllotedGeometry),
-				DrawEffects,
-				FillColorAndOpacitySRGB
-			);
+				FSlateRect ClippedAllotedGeometry = FSlateRect(SliderGeometry.AbsolutePosition, SliderGeometry.AbsolutePosition + SliderGeometry.Size * SliderGeometry.Scale);
+				ClippedAllotedGeometry.Right = ClippedAllotedGeometry.Left + ClippedAllotedGeometry.GetSize().X * ClampedFraction;
+
+				// Draw Fill
+				FSlateDrawElement::MakeBox(
+					OutDrawElements,
+					RetLayerId++,
+					SliderGeometry.ToPaintGeometry(BarTopLeft, FVector2D(SliderGeometry.GetLocalSize().X, BarSize.Y)),
+					LockedAttribute.Get() ? CurrentDisabledBackgroundImage : CurrentFillImage,
+					DrawEffects,
+					FillColorAndOpacitySRGB
+				);
+
+				OutDrawElements.PopClip();
+			}
+
+			else if (Orientation == Orient_Horizontal)
+			{
+				PushTransformedClip(OutDrawElements, AllottedGeometry, FVector2D(0.0f, 0.0f), FVector2D(0, 0), FSlateRect(0, 0, ClampedFraction, 1));
+
+				// Draw Fill
+				FSlateDrawElement::MakeBox(
+					OutDrawElements,
+					RetLayerId++,
+					SliderGeometry.ToPaintGeometry(BarTopLeft, FVector2D(SliderGeometry.GetLocalSize().X, BarSize.Y)),
+					LockedAttribute.Get() ? CurrentDisabledBackgroundImage : CurrentFillImage,
+					DrawEffects,
+					FillColorAndOpacitySRGB
+				);
+
+				OutDrawElements.PopClip();
+			}
+
+
+			//FSlateRect ClippedAllotedGeometry = FSlateRect(SliderGeometry.AbsolutePosition, SliderGeometry.AbsolutePosition + SliderGeometry.Size * SliderGeometry.Scale);
+			//ClippedAllotedGeometry.Right = ClippedAllotedGeometry.Left + ClippedAllotedGeometry.GetSize().X * ClampedFraction;
+
+			//old
+			//FSlateDrawElement::MakeBox(
+			//	OutDrawElements,
+			//	RetLayerId++,
+			//	SliderGeometry.ToPaintGeometry(BarTopLeft, FVector2D(SliderGeometry.Size.X, BarSize.Y)),
+			//	LockedAttribute.Get() ? CurrentDisabledBackgroundImage : CurrentFillImage,
+			//	RotatedClippingRect.IntersectionWith(ClippedAllotedGeometry),
+			//	DrawEffects,
+			//	FillColorAndOpacitySRGB
+			//);
+
+			//new
+
 		}
-
 
 		const FSlateBrush* ThumbImage =  LockedAttribute.Get() ? &Style->DisabledThumbImage  : &Style->NormalThumbImage;
 		const FLinearColor ThumbColorAndOpacity = ThumbImage->GetTint(InWidgetStyle) * InWidgetStyle.GetColorAndOpacityTint();
+
+
+		PushTransformedClip(OutDrawElements, AllottedGeometry, FVector2D(0.0f, 0.0f), FVector2D(0, 0), FSlateRect(0, 0, 1, 1));
 
 	// draw slider thumb
 		FSlateDrawElement::MakeBox(
@@ -149,12 +225,25 @@ int32 SRidersSlider::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGe
 			RetLayerId++,
 			SliderGeometry.ToPaintGeometry(HandleTopLeftPoint, Style->NormalThumbImage.ImageSize),
 			LockedAttribute.Get() ? &Style->DisabledThumbImage : &Style->NormalThumbImage,
-			RotatedClippingRect,
 			DrawEffects,
 			ThumbColorAndOpacity
 		);
 
-	return RetLayerId - 1;
+		//old
+		//FSlateDrawElement::MakeBox(
+		//	OutDrawElements,
+		//	RetLayerId++,
+		//	SliderGeometry.ToPaintGeometry(HandleTopLeftPoint, Style->NormalThumbImage.ImageSize),
+		//	LockedAttribute.Get() ? &Style->DisabledThumbImage : &Style->NormalThumbImage,
+		//	RotatedClippingRect,
+		//	DrawEffects,
+		//	ThumbColorAndOpacity
+		//);
+
+		//new
+		OutDrawElements.PopClip();
+
+	return RetLayerId;
 }
 
 FVector2D SRidersSlider::ComputeDesiredSize(float) const

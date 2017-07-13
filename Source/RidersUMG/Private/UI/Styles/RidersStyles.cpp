@@ -78,7 +78,8 @@ TSharedPtr<ISlateStyle> CreateStyle()
 			.SetNormalThumbImage(IMAGE_BRUSH("Common/Button", FVector2D(4.0f, 40.0f)))
 			.SetDisabledThumbImage(IMAGE_BRUSH("Common/Button_Disabled", FVector2D(4.0f, 40.0f)))
 			.SetBarThickness(20.0f)
-			.SetIndention(0.0f);
+			.SetIndention(0.0f)
+			.SetAngle(-90.0f);
 		Style->Set("RidersSlider", SliderStyle);
 	}
 

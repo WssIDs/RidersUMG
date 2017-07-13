@@ -71,6 +71,11 @@ struct RIDERSUMG_API FRidersSliderStyle : public FSlateWidgetStyle
 		float Indention;
 	FRidersSliderStyle& SetIndention(float InIndention) { Indention = InIndention; return *this; }
 
+	/** Slider thumb Angle */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+		float Angle;
+	FRidersSliderStyle& SetAngle(float InAngle) { Angle = InAngle; return *this; }
+
 };
 
 

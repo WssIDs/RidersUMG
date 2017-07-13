@@ -10,13 +10,11 @@
 #include "RidersSlider.generated.h"
 
 
-
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMouseCaptureBeginEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnMouseCaptureEndEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnControllerCaptureBeginEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnControllerCaptureEndEvent);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnFloatValueChangedEvent, float, Value);
-
 
 /**
  * 
@@ -122,4 +120,5 @@ protected:
 	void HandleOnControllerCaptureBegin();
 	void HandleOnControllerCaptureEnd();
 
+	PROPERTY_BINDING_IMPLEMENTATION(float, Value);
 };
